@@ -86,7 +86,7 @@ Conditional FP-Tree for item Soda:
    |--> Itemset: Book (ID: 17 ), freq: 2
 ```
 ```python
->>>fptree.mine_frequent_itemsets(cond_item = 'Soda')
+>>>fptree.mine_frequent_itemsets(cond_item = 'Soda', , buildCondFPTree = False)
 ```
 ```
 Prefixes for item Soda:
