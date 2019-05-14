@@ -9,9 +9,9 @@ class FPTree(object):
         :param order: order to be used to construct the FP-Tree. Either "frequency" or "lexicographic"
         :param conditionalTree: if conditional Tree, transactions will be prefix
         """
-        self.root = Node('{}', 99, None)
+        self.root = Node('{}', 0, None)
         self.supportThreshold = supportThreshold
-        self.header = {}
+        self.header = {}  # keys are items' names, values are lists of 2 elements: support, and first linked Node
         self.order = order
         self.lastItemsetNodes = {}
         self.database_path = None
@@ -27,11 +27,12 @@ class FPTree(object):
         """
         self.database_path = database_path
         with open(self.database_path) as file:  # First pass
-            for transaction in file:
+            for n, transaction in enumerate(file):
                 transaction = set(transaction[:-1].split(itemSeparator))  # Creating a set to avoid counting multiple
                                                                             # times a duplicated item from a basket
                 for itemset in transaction:
                     self.header[itemset] = self.header.get(itemset, 0) + 1
+            self.root.update_frequency(n)
         for key, value in self.header.items():
             self.header[key] = [value]
 
@@ -70,37 +71,43 @@ class FPTree(object):
                         print('Item {} has not been found in the database'.format(item))
                     else:
                         print(
-                            'Item {} has a support of {} which is below the SupportThreshold: {}'.format(item, support,
-                                                                                                         self.supportThreshold))
+                            'Item {} has a support of {} which is '
+                            'below the SupportThreshold: {}'.format(item, support, self.supportThreshold))
                 return False
         else:
             sorted_itemset = self.sort_transaction(itemset)
             sorted_itemset.reverse()
-            support = self.header[sorted_itemset[0]][1].check_frequent(sorted_itemset, sorted_itemset.copy(),
+            support = self.header[sorted_itemset[0]][1].check_frequent(sorted_itemset,
+                                                                       sorted_itemset.copy(),
                                                                        self.header[sorted_itemset[0]][1])
             if verbose > 0:
                 print('Support of {} is {}'.format(itemset, support))
             return False if support < self.supportThreshold else True
 
     def mine_frequent_itemsets(self, item: str, buildCondFPTree: bool = True):
-        startingNode = self.header[item][1]
-        conditionalPatternPrefixes = startingNode.collect_prefix({}, [], startingNode)
-        if buildCondFPTree:
-            conditionalFPTree = FPTree(self.supportThreshold, self.order, True)
-            for prefix, support in conditionalPatternPrefixes.items():
-                for item in prefix:
-                    conditionalFPTree.header[item] = conditionalFPTree.header.get(item, 0) + support
-            for key, value in conditionalFPTree.header.items():
-                conditionalFPTree.header[key] = [value]
-
-            for prefix, support in conditionalPatternPrefixes.items():
-                if support >= self.supportThreshold:
-                    conditionalFPTree.new_transaction(list(prefix), support)
-            print('Conditional FP-Tree for item {}:'.format(item))
-            conditionalFPTree.show()
+        try:
+            startingNode = self.header.get(item, [None, None])[1]
+        except IndexError:
+            print('This item is not frequent')
         else:
-            print('Prefixes for item {}:'.format(item))
-            print(conditionalPatternPrefixes)
+            assert startingNode is not None, 'This item is not in your database'
+            conditionalPatternPrefixes = startingNode.collect_prefix({}, [], startingNode)
+            if buildCondFPTree:
+                conditionalFPTree = FPTree(self.supportThreshold, self.order, True)
+                for prefix, support in conditionalPatternPrefixes.items():
+                    for item in prefix:
+                        conditionalFPTree.header[item] = conditionalFPTree.header.get(item, 0) + support
+                for key, value in conditionalFPTree.header.items():
+                    conditionalFPTree.header[key] = [value]
+
+                for prefix, support in conditionalPatternPrefixes.items():
+                    if support >= self.supportThreshold:
+                        conditionalFPTree.new_transaction(list(prefix), support)
+                print('Conditional FP-Tree for item {}:'.format(item))
+                conditionalFPTree.show()
+            else:
+                print('Prefixes for item {}:'.format(item))
+                print(conditionalPatternPrefixes)
 
     def sort_transaction(self, transaction: list):
         """
@@ -202,8 +209,8 @@ class Node(object):
         :return: prefixDict
         """
         if self.parent is None:  # Root Node
-            prefix = str(''.join(placeholderPrefix))[1:]
-            prefixDict[prefix[::-1]] = sourceNode.frequency
+            prefix = tuple(placeholderPrefix[1:][::-1])
+            prefixDict[prefix] = sourceNode.frequency
             if sourceNode.nodeLink is None:
                 return prefixDict
             else:
@@ -243,19 +250,17 @@ class Node(object):
             if sourceNode.nodeLink is None:
                 return sourceNode.frequency  # Base case for second recursion
             else:
-                return sourceNode.frequency + sourceNode.nodeLink.check_frequent(itemset, itemset.copy(),
-                                                                                 sourceNode.nodeLink)  # Base case for first recrusion and call towards second recursion
+                return sourceNode.frequency + sourceNode.nodeLink.check_frequent(itemset, itemset.copy(), sourceNode.nodeLink)  # Base case for first recrusion and call towards second recursion
         elif self.parent is None:  # Root Node
             if sourceNode.nodeLink is None:
                 return 0  # Base case for second recursion
             else:
-                return sourceNode.nodeLink.check_frequent(itemset, itemset.copy(),
-                                                          sourceNode.nodeLink)  # Base case for first recrusion and call towards second recursion
+                return sourceNode.nodeLink.check_frequent(itemset, itemset.copy(), sourceNode.nodeLink)  # Base case for first recursion and call towards second recursion
 
         elif self.name == remainingItems[0]:
             del remainingItems[0]
 
-        return self.parent.check_frequent(itemset, remainingItems, sourceNode)  # Call towards first recrusion
+        return self.parent.check_frequent(itemset, remainingItems, sourceNode)  # Call towards first recursion
 
     def show(self, indentation=1):
         if self.nodeLink is not None:
