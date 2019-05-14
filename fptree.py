@@ -84,9 +84,17 @@ class FPTree(object):
                 print('Support of {} is {}'.format(itemset, support))
             return False if support < self.supportThreshold else True
 
-    def mine_frequent_itemsets(self, item: str, buildCondFPTree: bool = True):
+    def mine_frequent_itemsets(self, cond_item: str, buildCondFPTree: bool = True):
+        """
+        Build a conditional FP-Tree or retrieve the prefixes conditioned on a specific item (i.e cond_item)
+
+        :param cond_item: item on which the conditional FP-Tree is conditioned
+        :param buildCondFPTree: if True then the method returns a Conditional FP-Tree. if False, it returns the prefixes
+         and their support
+        :return: see above
+        """
         try:
-            startingNode = self.header.get(item, [None, None])[1]
+            startingNode = self.header.get(cond_item, [None, None])[1]
         except IndexError:
             print('This item is not frequent')
         else:
@@ -103,10 +111,10 @@ class FPTree(object):
                 for prefix, support in conditionalPatternPrefixes.items():
                     if support >= self.supportThreshold:
                         conditionalFPTree.new_transaction(list(prefix), support)
-                print('Conditional FP-Tree for item {}:'.format(item))
+                print('Conditional FP-Tree for item {}:'.format(cond_item))
                 conditionalFPTree.show()
             else:
-                print('Prefixes for item {}:'.format(item))
+                print('Prefixes for item {}:'.format(cond_item))
                 print(conditionalPatternPrefixes)
 
     def sort_transaction(self, transaction: list):
